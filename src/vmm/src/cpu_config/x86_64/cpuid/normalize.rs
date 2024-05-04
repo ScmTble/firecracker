@@ -21,6 +21,8 @@ pub enum NormalizeCpuidError {
     ExtendedTopology(#[from] ExtendedTopologyError),
     /// Failed to set extended cache features leaf: {0}
     ExtendedCacheFeatures(#[from] ExtendedCacheFeaturesError),
+    /// Failed to set hypervisor clock frequencies leaf.
+    HypervisorClockFreq(#[from] HypervisorClockFreqError),
     /// Failed to set vendor ID in leaf 0x0: {0}
     VendorId(#[from] VendorIdError),
 }
@@ -79,6 +81,14 @@ pub enum ExtendedCacheFeaturesError {
     MissingLeaf0x80000005,
     /// Leaf 0x80000006 is missing from CPUID.
     MissingLeaf0x80000006,
+}
+
+/// Error type for setting the hypervisor clock frequency CPUID bits.
+#[derive(Debug, thiserror::Error, Eq, PartialEq)]
+pub enum HypervisorClockFreqError {
+    /// Leaf 0x40000000 is missing from CPUID.
+    #[error("Leaf 0x40000000 is missing from CPUID.")]
+    MissingLeaf0x40000000,
 }
 
 /// Error type for setting a bit range.
@@ -177,6 +187,8 @@ impl super::Cpuid {
         cpu_count: u8,
         // The number of bits needed to enumerate logical CPUs per core.
         cpu_bits: u8,
+        // The TSC frequency in kHz.
+        tsc_khz: u32,
     ) -> Result<(), NormalizeCpuidError> {
         let cpus_per_core = 1u8
             .checked_shl(u32::from(cpu_bits))
@@ -185,6 +197,8 @@ impl super::Cpuid {
         self.update_feature_info_entry(cpu_index, cpu_count)?;
         self.update_extended_topology_entry(cpu_index, cpu_count, cpu_bits, cpus_per_core)?;
         self.update_extended_cache_features()?;
+        self.update_hypervisor_max_freqleaf()?;
+        self.add_hypervisor_freqleaf(tsc_khz);
 
         // Apply manufacturer specific modifications.
         match self {
@@ -455,6 +469,32 @@ impl super::Cpuid {
         guest_leaf_0x80000006.result = cpuid(0x80000006).into();
         guest_leaf_0x80000006.result.edx &= !0x00030000; // bits [17:16] are reserved
         Ok(())
+    }
+
+    // Update hypervisor "maximum leaf" entry to allow for the frequency leaf
+    fn update_hypervisor_max_freqleaf(&mut self) -> Result<(), HypervisorClockFreqError> {
+        let guest_leaf_0x40000000 = self
+            .get_mut(&CpuidKey::leaf(0x40000000))
+            .ok_or(HypervisorClockFreqError::MissingLeaf0x40000000)?;
+        if guest_leaf_0x40000000.result.eax < 0x40000010 {
+            guest_leaf_0x40000000.result.eax = 0x40000010;
+        }
+        Ok(())
+    }
+
+    // Add hypervisor "clock frequencies" leaf
+    fn add_hypervisor_freqleaf(&mut self, tsc_khz: u32) {
+        self.inner_mut()
+            .entry(CpuidKey::leaf(0x40000010))
+            .or_insert(CpuidEntry {
+                flags: KvmCpuidFlags::EMPTY,
+                result: CpuidRegisters {
+                    eax: tsc_khz,
+                    ebx: 1000000, // KVM always uses a 1 GHz LAPIC clock
+                    ecx: 0x0,
+                    edx: 0x0,
+                },
+            });
     }
 }
 
