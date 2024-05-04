@@ -120,6 +120,7 @@ pub enum KvmVcpuConfigureError {
     SetupSpecialRegisters(#[from] SetupSpecialRegistersError),
     /// Failed to configure LAPICs: {0}
     SetLint(#[from] interrupts::InterruptError),
+    /// Failed to get TSC frequency: {0}
     GetTsc(#[from] GetTscError),
 }
 
