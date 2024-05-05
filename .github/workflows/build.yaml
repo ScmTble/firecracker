@@ -2,6 +2,10 @@ name: Send notification on release created
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'version to build'
+        required: true
 
 jobs:
   build:
@@ -16,4 +20,5 @@ jobs:
 
       - name: build
         run: |
+          export VERSION=${{ github.event.inputs.release }}
           ./tools/devtool build --release
