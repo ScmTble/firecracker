@@ -1,4 +1,4 @@
-name: Send notification on release created
+name: Build
 
 on:
   workflow_dispatch:
