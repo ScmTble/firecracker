@@ -22,3 +22,9 @@ jobs:
         run: |
           export VERSION=${{ github.event.inputs.release }}
           ./tools/devtool build --release
+
+      - name: artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firecracker-${{ github.event.inputs.release }}
+          path: build/cargo_target/x86_64-unknown-linux-musl/release/firecracker
