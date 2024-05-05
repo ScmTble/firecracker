@@ -1,0 +1,19 @@
+name: Send notification on release created
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: pull-image
+        run: |
+          docker pull public.ecr.aws/firecracker/fcuvm:v71_x86_64
+
+      - name: build
+        run: |
+          ./tools/devtool build --release
